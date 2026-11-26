@@ -27,6 +27,15 @@
         .progress-bar-fill {
             transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
         }
+        /* 오답 흔들림 애니메이션 */
+        .shake {
+            animation: shake 0.35s ease-in-out;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
         /* 커스텀 스크롤바 */
         ::-webkit-scrollbar {
             width: 6px;
@@ -214,14 +223,70 @@
                             전체 문항 투표 제출하기
                         </button>
                         <button type="button" onclick="toggleResultPreview(true)"
-                            class="w-full py-2.5 px-4 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-50 font-medium text-xs transition-colors">
-                            투표하지 않고 현재 결과만 보기
+                            class="w-full py-2.5 px-4 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-50 font-medium text-xs transition-colors flex items-center justify-center gap-1.5">
+                            <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                            결과 보기 (코드 입력 필요)
                         </button>
                     </div>
                 </div>
 
-                <!-- 3-B. 문항별 실시간 투표 결과 영역 (투표 후 또는 결과 보기) -->
+                <!-- 3-B. 결과 열람 코드 입력 잠금 화면 (투표 완료 후 또는 결과 보기 클릭 시) -->
+                <div id="resultLockArea" class="hidden py-8 px-5 rounded-2xl bg-slate-50 border border-slate-200/80 text-center space-y-5 fade-in">
+                    <div class="w-14 h-14 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center mx-auto shadow-inner">
+                        <i data-lucide="lock" class="w-7 h-7"></i>
+                    </div>
+                    <div class="space-y-1.5">
+                        <span id="votedCompleteBadge" class="hidden inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 mb-1">
+                            <i data-lucide="check" class="w-3.5 h-3.5"></i> 소중한 투표가 정상 반영되었습니다!
+                        </span>
+                        <h3 class="text-lg font-bold text-slate-900">다른 사람의 투표 결과 보기</h3>
+                        <p class="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+                            집계된 투표 현황은 비밀 코드가 있어야 확인할 수 있습니다. 아래 칸에 코드를 입력해주세요.
+                        </p>
+                    </div>
+
+                    <!-- 코드 입력 칸 -->
+                    <div class="max-w-xs mx-auto space-y-2.5">
+                        <label for="resultAccessCodeInput" class="block text-left text-xs font-bold text-slate-700 ml-1">
+                            코드 입력
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <input type="password" id="resultAccessCodeInput" inputmode="numeric" maxlength="10"
+                                placeholder="코드 입력"
+                                onkeydown="if(event.key==='Enter'){ event.preventDefault(); verifyResultCode(); }"
+                                class="w-full px-4 py-3 rounded-xl bg-white border border-slate-300 text-slate-900 text-center font-mono text-base tracking-widest placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all">
+                            <button type="button" onclick="verifyResultCode()"
+                                class="shrink-0 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm shadow-sm transition-all">
+                                확인
+                            </button>
+                        </div>
+                        <p id="codeErrorMsg" class="hidden text-xs font-semibold text-rose-500 text-left ml-1">
+                            코드가 올바르지 않습니다. 다시 확인해주세요.
+                        </p>
+                    </div>
+
+                    <!-- 다시 투표하거나 돌아가기 버튼 -->
+                    <div class="pt-3 border-t border-slate-200/70 flex justify-center gap-3">
+                        <button type="button" onclick="backToVotingFromLock()"
+                            class="px-4 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 font-semibold text-xs transition-colors flex items-center gap-1.5">
+                            <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+                            투표 화면으로 돌아가기
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 3-C. 문항별 실시간 투표 결과 영역 (코드 '0602' 인증 완료 시 표시) -->
                 <div id="votingResultArea" class="hidden space-y-6">
+                    <div class="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-indigo-50/70 border border-indigo-100 text-xs text-indigo-700 font-semibold">
+                        <span class="flex items-center gap-1.5">
+                            <i data-lucide="unlock" class="w-3.5 h-3.5"></i>
+                            코드 인증 완료 · 실시간 전체 결과 열람 중
+                        </span>
+                        <button type="button" onclick="lockResultsAgain()" class="underline hover:text-indigo-900">
+                            결과 숨기기
+                        </button>
+                    </div>
+
                     <div id="voteResultsList" class="space-y-6">
                         <!-- 문항별 실시간 득표율 프로그레스 바 렌더링 -->
                     </div>
@@ -302,5 +367,717 @@
             appId: "1:384324667418:web:8480ec5f1e8894103829a3"
         };
 
+        // 결과 열람 허용 코드 상수
+        const RESULT_ACCESS_CODE = "0602";
+
         let app, auth, db;
-// ... existing code ... -->
+        let currentUser = null;
+        let currentPollId = null;
+        let currentPollData = null;
+        let unsubscribePoll = null;
+        let selectedAnswers = {}; // { qIndex: [choiceIndex, ...] }
+        let isResultUnlocked = false; // '0602' 코드 입력 성공 여부
+
+        // 다중 질문 폼 상태
+        let draftQuestions = [];
+
+        // 뷰 전환 헬퍼 함수
+        function showView(viewId) {
+            ['loadingView', 'createView', 'shareView', 'voteView', 'errorView'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+            const target = document.getElementById(viewId);
+            if (target) target.classList.remove('hidden');
+
+            const newBtn = document.getElementById('headerNewPollBtn');
+            if (viewId === 'createView') {
+                newBtn.classList.add('hidden');
+            } else {
+                newBtn.classList.remove('hidden');
+            }
+            lucide.createIcons();
+        }
+
+        // 토스트 알림 표시
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            const bgClass = type === 'error' ? 'bg-rose-600' : (type === 'success' ? 'bg-emerald-600' : 'bg-slate-900');
+            toast.className = `${bgClass} text-white text-xs font-semibold px-4 py-3 rounded-2xl shadow-lg flex items-center gap-2 fade-in pointer-events-auto`;
+            toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 2600);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // 고유 8자리 설문 ID 생성
+        function generateShortId() {
+            const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+            let res = '';
+            for (let i = 0; i < 8; i++) {
+                res += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return res;
+        }
+
+        // ------------------------------------------------------------------
+        // 2. 다중 질문 설문 생성 폼 관리
+        // ------------------------------------------------------------------
+        function resetDraftQuestions() {
+            draftQuestions = [
+                { title: '', allowMultiple: false, options: ['', ''] }
+            ];
+            renderDraftQuestions();
+        }
+
+        window.addQuestionBlock = function() {
+            if (draftQuestions.length >= 10) {
+                showToast('질문은 최대 10개까지 추가할 수 있습니다.', 'error');
+                return;
+            }
+            draftQuestions.push({ title: '', allowMultiple: false, options: ['', ''] });
+            renderDraftQuestions();
+        };
+
+        window.removeQuestionBlock = function(qIdx) {
+            if (draftQuestions.length <= 1) return;
+            draftQuestions.splice(qIdx, 1);
+            renderDraftQuestions();
+        };
+
+        window.updateDraftQuestionTitle = function(qIdx, val) {
+            draftQuestions[qIdx].title = val;
+        };
+
+        window.toggleDraftMultiple = function(qIdx, checked) {
+            draftQuestions[qIdx].allowMultiple = checked;
+        };
+
+        window.updateDraftOption = function(qIdx, oIdx, val) {
+            draftQuestions[qIdx].options[oIdx] = val;
+        };
+
+        window.addDraftOption = function(qIdx) {
+            if (draftQuestions[qIdx].options.length >= 10) {
+                showToast('선택지는 문항당 최대 10개까지 가능합니다.', 'error');
+                return;
+            }
+            draftQuestions[qIdx].options.push('');
+            renderDraftQuestions();
+        };
+
+        window.removeDraftOption = function(qIdx, oIdx) {
+            if (draftQuestions[qIdx].options.length <= 2) return;
+            draftQuestions[qIdx].options.splice(oIdx, 1);
+            renderDraftQuestions();
+        };
+
+        function renderDraftQuestions() {
+            const container = document.getElementById('questionsContainer');
+            const badge = document.getElementById('questionCountBadge');
+            const addBtn = document.getElementById('addQuestionBtn');
+
+            badge.textContent = `${draftQuestions.length} / 10개 문항`;
+            if (draftQuestions.length >= 10) {
+                addBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                addBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+
+            container.innerHTML = draftQuestions.map((q, qIdx) => `
+                <div class="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="inline-flex items-center gap-1.5 text-xs font-extrabold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
+                            Q${qIdx + 1}. 투표 질문
+                        </span>
+                        ${draftQuestions.length > 1 ? `
+                            <button type="button" onclick="removeQuestionBlock(${qIdx})"
+                                class="text-xs font-semibold text-rose-500 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 삭제
+                            </button>
+                        ` : ''}
+                    </div>
+
+                    <input type="text" required maxlength="120"
+                        value="${escapeHtml(q.title)}"
+                        oninput="updateDraftQuestionTitle(${qIdx}, this.value)"
+                        placeholder="질문을 입력하세요 (예: 선호하는 날짜는 언제인가요?)"
+                        class="w-full px-3.5 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-semibold">
+
+                    <div class="space-y-2">
+                        <label class="block text-xs font-semibold text-slate-500">선택지 (최소 2개)</label>
+                        ${q.options.map((opt, oIdx) => `
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 text-center text-xs font-bold text-slate-400">${oIdx + 1}</span>
+                                <input type="text" required maxlength="80"
+                                    value="${escapeHtml(opt)}"
+                                    oninput="updateDraftOption(${qIdx}, ${oIdx}, this.value)"
+                                    placeholder="선택지 ${oIdx + 1}"
+                                    class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm">
+                                ${q.options.length > 2 ? `
+                                    <button type="button" onclick="removeDraftOption(${qIdx}, ${oIdx})"
+                                        class="p-2 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition-colors" title="선택지 삭제">
+                                        <i data-lucide="x" class="w-4 h-4"></i>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+
+                        ${q.options.length < 10 ? `
+                            <button type="button" onclick="addDraftOption(${qIdx})"
+                                class="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> 선택지 추가
+                            </button>
+                        ` : ''}
+                    </div>
+
+                    <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
+                        <span class="text-xs font-medium text-slate-600">복수 선택 허용 (여러 개 체크 가능)</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" ${q.allowMultiple ? 'checked' : ''}
+                                onchange="toggleDraftMultiple(${qIdx}, this.checked)" class="sr-only peer">
+                            <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
+                </div>
+            `).join('');
+
+            lucide.createIcons();
+        }
+
+        // ------------------------------------------------------------------
+        // 3. 설문 생성 및 Firestore 저장
+        // ------------------------------------------------------------------
+        window.handleCreatePoll = async function(e) {
+            e.preventDefault();
+            if (!currentUser) {
+                showToast('서버 연결 중입니다. 잠시 후 다시 시도해주세요.', 'error');
+                return;
+            }
+
+            const title = document.getElementById('surveyTitle').value.trim();
+            const description = document.getElementById('surveyDescription').value.trim();
+
+            if (!title) {
+                showToast('설문 전체 제목을 입력해주세요.', 'error');
+                return;
+            }
+
+            // 문항 데이터 검증 및 정규화
+            const formattedQuestions = [];
+            for (let i = 0; i < draftQuestions.length; i++) {
+                const q = draftQuestions[i];
+                const qTitle = q.title.trim();
+                const validOpts = q.options.map(o => o.trim()).filter(o => o.length > 0);
+
+                if (!qTitle) {
+                    showToast(`${i + 1}번 투표 질문을 입력해주세요.`, 'error');
+                    return;
+                }
+                if (validOpts.length < 2) {
+                    showToast(`${i + 1}번 질문의 선택지를 최소 2개 이상 입력해주세요.`, 'error');
+                    return;
+                }
+
+                formattedQuestions.push({
+                    title: qTitle,
+                    allowMultiple: !!q.allowMultiple,
+                    options: validOpts.map(text => ({ text, votes: 0 }))
+                });
+            }
+
+            const submitBtn = document.getElementById('submitPollBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `<span class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></span> 생성 중...`;
+
+            try {
+                const pollId = generateShortId();
+                const pollRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', pollId);
+
+                await setDoc(pollRef, {
+                    id: pollId,
+                    title,
+                    description,
+                    questions: formattedQuestions,
+                    totalParticipants: 0,
+                    createdAt: serverTimestamp(),
+                    createdBy: currentUser.uid
+                });
+
+                currentPollId = pollId;
+                const shareUrl = `${window.location.origin}${window.location.pathname}#survey=${pollId}`;
+
+                document.getElementById('shareQuestionPreview').textContent = title;
+                document.getElementById('shareQuestionCountBadge').textContent = `총 ${formattedQuestions.length}개 문항`;
+                document.getElementById('shareLinkInput').value = shareUrl;
+
+                showView('shareView');
+                showToast('설문이 성공적으로 생성되었습니다!', 'success');
+            } catch (err) {
+                console.error('Error creating poll:', err);
+                showToast('저장 중 오류가 발생했습니다. Firebase 설정을 확인해주세요.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `<i data-lucide="link" class="w-5 h-5"></i> 설문 완성 및 공유 링크 생성`;
+                lucide.createIcons();
+            }
+        };
+
+        // ------------------------------------------------------------------
+        // 4. 투표 참여 및 결과 열람 코드('0602') 인증 로직
+        // ------------------------------------------------------------------
+        function loadPollAndListen(pollId) {
+            if (unsubscribePoll) {
+                unsubscribePoll();
+                unsubscribePoll = null;
+            }
+
+            currentPollId = pollId;
+            selectedAnswers = {};
+            isResultUnlocked = false;
+
+            document.getElementById('loadingText').textContent = '설문 정보를 불러오는 중...';
+            showView('loadingView');
+
+            const pollRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', pollId);
+
+            unsubscribePoll = onSnapshot(pollRef, (docSnap) => {
+                if (!docSnap.exists()) {
+                    document.getElementById('errorMessage').textContent = '존재하지 않거나 삭제된 설문 링크입니다.';
+                    showView('errorView');
+                    return;
+                }
+
+                currentPollData = docSnap.data();
+                renderSurveyHeader(currentPollData);
+
+                const storageKey = `quickpoll_voted_${pollId}`;
+                const savedVoteRaw = localStorage.getItem(storageKey);
+
+                if (savedVoteRaw) {
+                    // 이미 투표한 사용자: 코드 인증 여부에 따라 잠금 화면 또는 결과 화면 표시
+                    if (isResultUnlocked) {
+                        renderSurveyResults(currentPollData);
+                        showVotingSubArea('votingResultArea');
+                    } else {
+                        showLockArea(true);
+                    }
+                } else {
+                    // 아직 투표하지 않은 사용자
+                    if (isResultUnlocked) {
+                        renderSurveyResults(currentPollData);
+                        showVotingSubArea('votingResultArea');
+                    } else if (!document.getElementById('resultLockArea').classList.contains('hidden')) {
+                        // 잠금 화면을 보고 있는 중이면 유지
+                        showLockArea(false);
+                    } else {
+                        renderVotingQuestions(currentPollData);
+                        showVotingSubArea('votingSelectionArea');
+                    }
+                }
+
+                showView('voteView');
+            }, (error) => {
+                console.error('Snapshot error:', error);
+                document.getElementById('errorMessage').textContent = '데이터를 불러오는 중 권한 또는 네트워크 오류가 발생했습니다.';
+                showView('errorView');
+            });
+        }
+
+        function showVotingSubArea(areaId) {
+            ['votingSelectionArea', 'resultLockArea', 'votingResultArea'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(areaId).classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function showLockArea(isJustVoted = false) {
+            const votedBadge = document.getElementById('votedCompleteBadge');
+            if (isJustVoted) {
+                votedBadge.classList.remove('hidden');
+            } else {
+                votedBadge.classList.add('hidden');
+            }
+            document.getElementById('resultAccessCodeInput').value = '';
+            document.getElementById('codeErrorMsg').classList.add('hidden');
+            showVotingSubArea('resultLockArea');
+        }
+
+        // 코드 입력 검증 ('0602')
+        window.verifyResultCode = function() {
+            const input = document.getElementById('resultAccessCodeInput');
+            const errorMsg = document.getElementById('codeErrorMsg');
+            const entered = input.value.trim();
+
+            if (entered === RESULT_ACCESS_CODE) {
+                isResultUnlocked = true;
+                errorMsg.classList.add('hidden');
+                renderSurveyResults(currentPollData);
+                showVotingSubArea('votingResultArea');
+                showToast('코드가 확인되었습니다. 투표 결과를 표시합니다.', 'success');
+            } else {
+                errorMsg.classList.remove('hidden');
+                input.classList.remove('shake');
+                void input.offsetWidth; // 리플로우 트리거
+                input.classList.add('shake');
+                input.focus();
+                input.select();
+            }
+        };
+
+        // 결과 다시 숨기기
+        window.lockResultsAgain = function() {
+            isResultUnlocked = false;
+            const storageKey = `quickpoll_voted_${currentPollId}`;
+            const hasVoted = !!localStorage.getItem(storageKey);
+            if (hasVoted) {
+                showLockArea(true);
+            } else {
+                renderVotingQuestions(currentPollData);
+                showVotingSubArea('votingSelectionArea');
+            }
+        };
+
+        // 잠금 화면에서 투표 화면으로 돌아가기
+        window.backToVotingFromLock = function() {
+            renderVotingQuestions(currentPollData);
+            showVotingSubArea('votingSelectionArea');
+        };
+
+        // 결과 보기 버튼 클릭 시 잠금 화면 표시
+        window.toggleResultPreview = function(showPreview) {
+            if (showPreview) {
+                if (isResultUnlocked) {
+                    renderSurveyResults(currentPollData);
+                    showVotingSubArea('votingResultArea');
+                } else {
+                    showLockArea(false);
+                }
+            } else {
+                renderVotingQuestions(currentPollData);
+                showVotingSubArea('votingSelectionArea');
+            }
+        };
+
+        function renderSurveyHeader(data) {
+            const qList = data.questions || [];
+            document.getElementById('voteQuestionCountBadge').textContent = `총 ${qList.length}개 문항`;
+            document.getElementById('voteQuestionTitle').textContent = data.title || '제목 없는 설문';
+
+            const descEl = document.getElementById('voteDescriptionText');
+            if (data.description) {
+                descEl.textContent = data.description;
+                descEl.classList.remove('hidden');
+            } else {
+                descEl.classList.add('hidden');
+            }
+        }
+
+        function renderVotingQuestions(data) {
+            const container = document.getElementById('voteChoicesList');
+            const questions = data.questions || [];
+
+            container.innerHTML = questions.map((q, qIdx) => {
+                const selectedForQ = selectedAnswers[qIdx] || [];
+                return `
+                    <div class="p-4 sm:p-5 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-3">
+                        <div class="flex items-start justify-between gap-2">
+                            <h3 class="font-bold text-slate-900 text-base leading-snug">
+                                <span class="text-indigo-600 mr-1">Q${qIdx + 1}.</span>${escapeHtml(q.title)}
+                            </h3>
+                            <span class="shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-md ${q.allowMultiple ? 'bg-amber-100 text-amber-800' : 'bg-slate-200/70 text-slate-600'}">
+                                ${q.allowMultiple ? '복수 선택' : '단일 선택'}
+                            </span>
+                        </div>
+
+                        <div class="space-y-2 pt-1">
+                            ${q.options.map((opt, oIdx) => {
+                                const isChecked = selectedForQ.includes(oIdx);
+                                return `
+                                    <button type="button" onclick="selectChoice(${qIdx}, ${oIdx}, ${q.allowMultiple})"
+                                        class="w-full text-left p-3.5 rounded-xl border transition-all flex items-center gap-3 ${
+                                            isChecked
+                                                ? 'bg-indigo-50/90 border-indigo-500 ring-2 ring-indigo-500/15 text-indigo-950 font-semibold'
+                                                : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/20 text-slate-700'
+                                        }">
+                                        <div class="w-5 h-5 shrink-0 flex items-center justify-center border ${
+                                            q.allowMultiple ? 'rounded-md' : 'rounded-full'
+                                        } ${
+                                            isChecked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'
+                                        }">
+                                            ${isChecked ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
+                                        </div>
+                                        <span class="text-sm break-words">${escapeHtml(opt.text)}</span>
+                                    </button>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        window.selectChoice = function(qIdx, oIdx, allowMultiple) {
+            if (!selectedAnswers[qIdx]) {
+                selectedAnswers[qIdx] = [];
+            }
+
+            if (allowMultiple) {
+                const pos = selectedAnswers[qIdx].indexOf(oIdx);
+                if (pos > -1) {
+                    selectedAnswers[qIdx].splice(pos, 1);
+                } else {
+                    selectedAnswers[qIdx].push(oIdx);
+                }
+            } else {
+                selectedAnswers[qIdx] = [oIdx];
+            }
+
+            renderVotingQuestions(currentPollData);
+        };
+
+        // 일괄 투표 제출
+        window.submitVote = async function() {
+            if (!currentPollData || !currentPollId) return;
+            const questions = currentPollData.questions || [];
+
+            for (let i = 0; i < questions.length; i++) {
+                if (!selectedAnswers[i] || selectedAnswers[i].length === 0) {
+                    showToast(`Q${i + 1} 문항의 선택지를 골라주세요.`, 'error');
+                    return;
+                }
+            }
+
+            const btn = document.getElementById('castVoteBtn');
+            btn.disabled = true;
+            btn.innerHTML = `<span class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></span> 투표 반영 중...`;
+
+            try {
+                const pollRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', currentPollId);
+                const freshSnap = await getDoc(pollRef);
+                if (!freshSnap.exists()) throw new Error('Poll not found');
+
+                const freshData = freshSnap.data();
+                const storageKey = `quickpoll_voted_${currentPollId}`;
+                const prevVoteRaw = localStorage.getItem(storageKey);
+                const prevAnswers = prevVoteRaw ? JSON.parse(prevVoteRaw) : null;
+
+                // 기존 표가 있다면 차감 후 새 표 합산
+                const updatedQuestions = freshData.questions.map((q, qIdx) => {
+                    const prevSelected = prevAnswers && prevAnswers[qIdx] ? prevAnswers[qIdx] : [];
+                    const currSelected = selectedAnswers[qIdx] || [];
+
+                    const newOpts = q.options.map((opt, oIdx) => {
+                        let count = opt.votes || 0;
+                        if (prevSelected.includes(oIdx)) count = Math.max(0, count - 1);
+                        if (currSelected.includes(oIdx)) count += 1;
+                        return { ...opt, votes: count };
+                    });
+
+                    return { ...q, options: newOpts };
+                });
+
+                await updateDoc(pollRef, {
+                    questions: updatedQuestions,
+                    totalParticipants: prevAnswers ? (freshData.totalParticipants || 1) : increment(1)
+                });
+
+                localStorage.setItem(storageKey, JSON.stringify(selectedAnswers));
+                showToast('투표가 완료되었습니다! 결과 확인을 위해 코드를 입력해주세요.', 'success');
+
+                // 투표 직후 코드 인증 상태가 아니면 코드 입력 잠금 화면 표시
+                if (!isResultUnlocked) {
+                    showLockArea(true);
+                }
+            } catch (err) {
+                console.error('Submit vote error:', err);
+                showToast('투표 저장 중 오류가 발생했습니다.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5"></i> 전체 문항 투표 제출하기`;
+                lucide.createIcons();
+            }
+        };
+
+        // 문항별 실시간 결과 그래프 렌더링
+        function renderSurveyResults(data) {
+            const container = document.getElementById('voteResultsList');
+            const questions = data.questions || [];
+            const storageKey = `quickpoll_voted_${currentPollId}`;
+            const myVoteRaw = localStorage.getItem(storageKey);
+            const myVotes = myVoteRaw ? JSON.parse(myVoteRaw) : {};
+
+            document.getElementById('totalVotesCount').textContent = data.totalParticipants || 0;
+
+            container.innerHTML = questions.map((q, qIdx) => {
+                const totalQVotes = q.options.reduce((sum, o) => sum + (o.votes || 0), 0);
+                const maxVotes = Math.max(...q.options.map(o => o.votes || 0));
+                const mySelectedForQ = myVotes[qIdx] || [];
+
+                return `
+                    <div class="p-4 sm:p-5 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-3.5">
+                        <div class="flex items-start justify-between gap-2">
+                            <h3 class="font-bold text-slate-900 text-base leading-snug">
+                                <span class="text-indigo-600 mr-1">Q${qIdx + 1}.</span>${escapeHtml(q.title)}
+                            </h3>
+                            <span class="shrink-0 text-xs font-medium text-slate-500">총 ${totalQVotes}표</span>
+                        </div>
+
+                        <div class="space-y-2.5">
+                            ${q.options.map((opt, oIdx) => {
+                                const votes = opt.votes || 0;
+                                const pct = totalQVotes > 0 ? Math.round((votes / totalQVotes) * 100) : 0;
+                                const isWinner = totalQVotes > 0 && votes === maxVotes;
+                                const isMine = mySelectedForQ.includes(oIdx);
+
+                                return `
+                                    <div class="relative overflow-hidden rounded-xl bg-white border ${isWinner ? 'border-indigo-300 shadow-xs' : 'border-slate-200/80'} p-3.5">
+                                        <div class="progress-bar-fill absolute inset-y-0 left-0 ${isWinner ? 'bg-indigo-100/75' : 'bg-slate-100/80'}" style="width: ${pct}%"></div>
+                                        <div class="relative flex items-center justify-between gap-3">
+                                            <div class="flex items-center gap-2 min-w-0">
+                                                <span class="text-sm font-semibold ${isWinner ? 'text-indigo-950' : 'text-slate-800'} truncate">
+                                                    ${escapeHtml(opt.text)}
+                                                </span>
+                                                ${isMine ? `
+                                                    <span class="shrink-0 inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-600 text-white">
+                                                        내 선택
+                                                    </span>
+                                                ` : ''}
+                                            </div>
+                                            <div class="shrink-0 text-right">
+                                                <span class="text-sm font-extrabold ${isWinner ? 'text-indigo-600' : 'text-slate-700'}">${pct}%</span>
+                                                <span class="text-xs text-slate-400 ml-1">(${votes}표)</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        window.enableRevote = function() {
+            const storageKey = `quickpoll_voted_${currentPollId}`;
+            const saved = localStorage.getItem(storageKey);
+            if (saved) {
+                selectedAnswers = JSON.parse(saved);
+            }
+            renderVotingQuestions(currentPollData);
+            showVotingSubArea('votingSelectionArea');
+        };
+
+        // ------------------------------------------------------------------
+        // 5. 네비게이션 및 클립보드 복사 유틸리티
+        // ------------------------------------------------------------------
+        window.goToCreateView = function() {
+            if (unsubscribePoll) {
+                unsubscribePoll();
+                unsubscribePoll = null;
+            }
+            currentPollId = null;
+            currentPollData = null;
+            isResultUnlocked = false;
+            history.pushState(null, '', window.location.pathname);
+
+            document.getElementById('surveyTitle').value = '';
+            document.getElementById('surveyDescription').value = '';
+            resetDraftQuestions();
+            showView('createView');
+        };
+
+        window.openCreatedVote = function() {
+            if (!currentPollId) return;
+            window.location.hash = `survey=${currentPollId}`;
+        };
+
+        function copyTextToClipboard(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast('공유 링크가 클립보드에 복사되었습니다!', 'success');
+            } catch (err) {
+                showToast('링크 복사에 실패했습니다. 직접 복사해주세요.', 'error');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        window.copyShareLink = function() {
+            const input = document.getElementById('shareLinkInput');
+            copyTextToClipboard(input.value);
+        };
+
+        window.copyCurrentVoteLink = function() {
+            copyTextToClipboard(window.location.href);
+        };
+
+        function handleRouteChange() {
+            const hash = window.location.hash;
+            if (hash && (hash.startsWith('#survey=') || hash.startsWith('#vote='))) {
+                const pollId = hash.split('=')[1]?.trim();
+                if (pollId) {
+                    loadPollAndListen(pollId);
+                    return;
+                }
+            }
+            resetDraftQuestions();
+            showView('createView');
+        }
+
+        // ------------------------------------------------------------------
+        // 6. 앱 시작 및 Firebase 익명 인증 초기화
+        // ------------------------------------------------------------------
+        async function initApp() {
+            try {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user && !currentUser) {
+                        currentUser = user;
+                        handleRouteChange();
+                    }
+                });
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                window.addEventListener('hashchange', handleRouteChange);
+            } catch (err) {
+                console.error('Firebase init error:', err);
+                document.getElementById('errorMessage').textContent = '서버 초기화에 실패했습니다. Firebase 설정을 확인해주세요.';
+                showView('errorView');
+            }
+        }
+
+        initApp();
+    </script>
+</body>
+</html>
