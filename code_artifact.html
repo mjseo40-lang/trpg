@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>실시간 공유 투표 메이커</title>
+    <!-- Tailwind CSS 로드 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Pretendard & Inter -->
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            background-color: #f8fafc;
+        }
+        /* 부드러운 전환 애니메이션 */
+        .fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* 프로그레스 바 애니메이션 */
+        .progress-bar-fill {
+            transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        /* 커스텀 스크롤바 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between text-slate-800 antialiased selection:bg-indigo-100 selection:text-indigo-700">
+
+    <!-- 상단 네비게이션 바 -->
+    <header class="bg-white/80 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-30">
+        <div class="max-w-xl mx-auto px-4 h-16 flex items-center justify-between">
+            <button onclick="goToCreateView()" class="flex items-center gap-2.5 text-left group focus:outline-none">
+                <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm group-hover:bg-indigo-700 transition-colors">
+                    <i data-lucide="bar-chart-2" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg tracking-tight text-slate-900 leading-none">퀵폴 (QuickPoll)</h1>
+                    <p class="text-[11px] text-slate-500 font-medium mt-0.5">초간편 실시간 링크 투표</p>
+                </div>
+            </button>
+            <button id="headerNewPollBtn" onclick="goToCreateView()" class="hidden text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1.5">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                새 투표 만들기
+            </button>
+        </div>
+    </header>
+
+    <!-- 메인 컨테이너 -->
+    <main class="flex-grow flex items-center justify-center p-4 py-8">
+        <div class="w-full max-w-xl">
+            
+            <!-- 0. 로딩 화면 -->
+            <div id="loadingView" class="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-12 text-center fade-in">
+                <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-indigo-100 border-t-indigo-600 mb-4"></div>
+                <p class="text-slate-600 font-medium text-sm" id="loadingText">투표 서버에 연결하고 있습니다...</p>
+            </div>
+
+            <!-- 1. 투표 생성 화면 -->
+            <div id="createView" class="hidden bg-white rounded-3xl shadow-sm border border-slate-200/80 p-6 sm:p-8 fade-in">
+                <div class="mb-6">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600 mb-2">
+                        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> 새 다중 투표(설문) 생성
+                    </span>
+                    <h2 class="text-2xl font-bold text-slate-900 tracking-tight">어떤 주제로 투표를 만들까요?</h2>
+                    <p class="text-sm text-slate-500 mt-1">설문 제목을 입력하고 원하는 만큼 투표 질문을 추가해 한 번에 공유하세요.</p>
+                </div>
+
+                <form id="createPollForm" onsubmit="handleCreatePoll(event)" class="space-y-6">
+                    <!-- 설문 전체 제목 -->
+                    <div class="p-4 sm:p-5 rounded-2xl bg-indigo-50/50 border border-indigo-100">
+                        <label for="surveyTitle" class="block text-sm font-bold text-indigo-950 mb-2">
+                            설문(투표) 전체 제목 <span class="text-rose-500">*</span>
+                        </label>
+                        <input type="text" id="surveyTitle" required maxlength="100"
+                            placeholder="예: 2026 팀 워크숍 일정 및 메뉴 투표"
+                            class="w-full px-4 py-3.5 rounded-xl bg-white border border-indigo-200/80 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-base font-bold">
+                        <input type="text" id="surveyDescription" maxlength="200"
+                            placeholder="설명에 대한 간단한 안내 문구 (선택사항)"
+                            class="mt-2.5 w-full px-4 py-2.5 rounded-xl bg-white/80 border border-indigo-100 text-slate-700 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all text-xs">
+                    </div>
+
+                    <!-- 동적 질문 카드 목록 컨테이너 -->
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                                <i data-lucide="list-checks" class="w-4 h-4 text-indigo-600"></i>
+                                투표 질문 목록
+                            </span>
+                            <span id="questionCountBadge" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600">1 / 10개 문항</span>
+                        </div>
+
+                        <div id="questionsContainer" class="space-y-5">
+                            <!-- 개별 질문 블록들이 여기에 동적으로 렌더링됩니다 -->
+                        </div>
+
+                        <!-- 질문 추가 버튼 -->
+                        <button type="button" id="addQuestionBtn" onclick="addQuestionBlock()"
+                            class="w-full py-3.5 px-4 rounded-2xl border-2 border-dashed border-indigo-300 bg-indigo-50/30 hover:bg-indigo-50 hover:border-indigo-500 text-indigo-600 font-bold text-sm transition-all flex items-center justify-center gap-2">
+                            <i data-lucide="plus-square" class="w-4 h-4"></i>
+                            투표 질문 추가하기
+                        </button>
+                    </div>
+
+                    <!-- 생성 버튼 -->
+                    <div class="pt-2">
+                        <button type="submit" id="submitPollBtn"
+                            class="w-full py-4 px-6 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-bold text-base shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2">
+                            <i data-lucide="link" class="w-5 h-5"></i>
+                            설문 완성 및 공유 링크 생성
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 2. 링크 생성 완료 및 공유 모달/화면 -->
+            <div id="shareView" class="hidden bg-white rounded-3xl shadow-sm border border-slate-200/80 p-6 sm:p-8 text-center fade-in">
+                <div class="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-5 shadow-inner">
+                    <i data-lucide="check-circle-2" class="w-9 h-9"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-900 tracking-tight">설문 링크가 생성되었습니다!</h2>
+                <p class="text-sm text-slate-500 mt-2 max-w-sm mx-auto leading-relaxed">
+                    아래 링크를 복사해 카카오톡, 슬랙, 문자 등으로 공유하세요. 다른 기기에서도 모든 문항에 한 번에 투표할 수 있습니다.
+                </p>
+
+                <!-- 생성된 설문 요약 미리보기 -->
+                <div class="mt-6 p-4 rounded-2xl bg-slate-50 border border-slate-200/80 text-left">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-600">생성된 설문</span>
+                        <span id="shareQuestionCountBadge" class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700">총 1개 문항</span>
+                    </div>
+                    <p id="shareQuestionPreview" class="font-bold text-slate-800 text-base mt-1 break-words"></p>
+                </div>
+
+                <!-- 공유 링크 복사 영역 -->
+                <div class="mt-5">
+                    <label class="block text-left text-xs font-semibold text-slate-500 mb-1.5 ml-1">공유 링크 URL</label>
+                    <div class="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-100 border border-slate-200">
+                        <input type="text" id="shareLinkInput" readonly
+                            class="w-full bg-transparent px-3 py-2 text-sm text-slate-700 font-mono focus:outline-none select-all">
+                        <button type="button" onclick="copyShareLink()"
+                            class="shrink-0 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-semibold text-xs transition-all flex items-center gap-1.5 shadow-sm">
+                            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                            링크 복사
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 하단 액션 버튼 -->
+                <div class="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button type="button" onclick="goToCreateView()"
+                        class="py-3.5 px-5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition-colors flex items-center justify-center gap-2">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        새 설문 만들기
+                    </button>
+                    <button type="button" id="goToVoteBtn" onclick="openCreatedVote()"
+                        class="py-3.5 px-5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2">
+                        설문 참여하러 가기
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 3. 투표 참여 및 실시간 결과 화면 -->
+            <div id="voteView" class="hidden bg-white rounded-3xl shadow-sm border border-slate-200/80 p-6 sm:p-8 fade-in">
+                <!-- 상단 메타 정보 배지 -->
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                    <div class="flex items-center gap-2">
+                        <span id="voteQuestionCountBadge" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600">
+                            총 1개 문항
+                        </span>
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            실시간 집계중
+                        </span>
+                    </div>
+                    <button type="button" onclick="copyCurrentVoteLink()"
+                        class="text-xs font-semibold text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1.5">
+                        <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+                        링크 공유
+                    </button>
+                </div>
+
+                <!-- 설문 메인 타이틀 및 설명 -->
+                <h2 id="voteQuestionTitle" class="text-2xl font-bold text-slate-900 tracking-tight leading-snug break-words mb-1.5"></h2>
+                <p id="voteDescriptionText" class="hidden text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100 mb-3 break-words"></p>
+                <p id="voteSubtitle" class="text-sm text-slate-500 mb-6">아래 각 문항의 항목을 선택한 후 한 번에 제출해주세요.</p>
+
+                <!-- 3-A. 다중 투표 선택지 폼 영역 (투표 전) -->
+                <div id="votingSelectionArea" class="space-y-6">
+                    <div id="voteChoicesList" class="space-y-6">
+                        <!-- 각 문항별 선택지 카드 렌더링 -->
+                    </div>
+
+                    <div class="pt-4 space-y-2.5">
+                        <button type="button" id="castVoteBtn" onclick="submitVote()"
+                            class="w-full py-4 px-6 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-bold text-base shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2">
+                            <i data-lucide="check-circle" class="w-5 h-5"></i>
+                            전체 문항 투표 제출하기
+                        </button>
+                        <button type="button" onclick="toggleResultPreview(true)"
+                            class="w-full py-2.5 px-4 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-50 font-medium text-xs transition-colors">
+                            투표하지 않고 현재 결과만 보기
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 3-B. 문항별 실시간 투표 결과 영역 (투표 후 또는 결과 보기) -->
+                <div id="votingResultArea" class="hidden space-y-6">
+                    <div id="voteResultsList" class="space-y-6">
+                        <!-- 문항별 실시간 득표율 프로그레스 바 렌더링 -->
+                    </div>
+
+                    <!-- 총 참여자 수 및 액션 버튼 -->
+                    <div class="pt-4 mt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="flex items-center gap-2 text-sm text-slate-600">
+                            <i data-lucide="users" class="w-4 h-4 text-slate-400"></i>
+                            <span>총 <strong id="totalVotesCount" class="text-slate-900 font-bold">0</strong>명 참여 완료</span>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <button type="button" id="revoteBtn" onclick="enableRevote()"
+                                class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors flex items-center gap-1.5">
+                                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                                다시 투표하기
+                            </button>
+                            <button type="button" onclick="copyCurrentVoteLink()"
+                                class="px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs transition-colors flex items-center gap-1.5">
+                                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                                링크 복사
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 하단 새 투표 만들기 유도 버튼 -->
+                <div class="mt-8 pt-5 border-t border-slate-100 text-center">
+                    <button type="button" onclick="goToCreateView()"
+                        class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-indigo-600 transition-colors">
+                        <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                        나도 새로운 다중 설문 만들어보기
+                    </button>
+                </div>
+            </div>
+
+            <!-- 4. 에러 / 존재하지 않는 투표 화면 -->
+            <div id="errorView" class="hidden bg-white rounded-3xl shadow-sm border border-slate-200/80 p-8 text-center fade-in">
+                <div class="w-14 h-14 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="alert-circle" class="w-8 h-8"></i>
+                </div>
+                <h2 class="text-xl font-bold text-slate-900">투표를 찾을 수 없습니다</h2>
+                <p id="errorMessage" class="text-sm text-slate-500 mt-2 mb-6">링크가 잘못되었거나 삭제된 투표입니다.</p>
+                <button type="button" onclick="goToCreateView()"
+                    class="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-colors">
+                    새 투표 만들기
+                </button>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- 푸터 -->
+    <footer class="py-6 text-center text-xs text-slate-400">
+        <p>링크 하나로 어디서든 실시간 동기화되는 간편 투표 서비스</p>
+    </footer>
+
+    <!-- 토스트 알림 컨테이너 -->
+    <div id="toastContainer" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none w-full max-w-xs px-4"></div>
+
+    <!-- Firebase SDK (v11.6.1) 및 애플리케이션 스크립트 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ------------------------------------------------------------------
+        // 1. Firebase 초기화 및 인증 설정
+        // ------------------------------------------------------------------
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'trpg-quickpoll';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyDsqUyo8LOAI7xGw7i0T7zHdnh7u66mEAU",
+            authDomain: "trpg-eb9b9.firebaseapp.com",
+            databaseURL: "https://trpg-eb9b9-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "trpg-eb9b9",
+            storageBucket: "trpg-eb9b9.firebasestorage.app",
+            messagingSenderId: "384324667418",
+            appId: "1:384324667418:web:8480ec5f1e8894103829a3"
+        };
+
+        let app, auth, db;
+// ... existing code ... -->
